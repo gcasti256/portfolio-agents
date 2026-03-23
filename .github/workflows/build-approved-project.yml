@@ -1,0 +1,71 @@
+name: Build Approved Project
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    if: github.event.label.name == 'approved' && contains(github.event.issue.labels.*.name, 'project-idea')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Extract project metadata from issue
+        id: meta
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body;
+            const jsonMatch = body.match(/```json\n([\s\S]*?)\n```/);
+            if (!jsonMatch) {
+              core.setFailed('No JSON metadata found in issue body');
+              return;
+            }
+            const meta = JSON.parse(jsonMatch[1]);
+            core.setOutput('name', meta.name);
+            core.setOutput('description', meta.description);
+            core.setOutput('template', meta.template);
+
+      - name: Scaffold and publish project
+        run: |
+          node dist/cli.js scaffold \
+            -n "${{ steps.meta.outputs.name }}" \
+            -t "${{ steps.meta.outputs.template }}" \
+            -d "${{ steps.meta.outputs.description }}" \
+            -o /tmp/projects \
+            --publish
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: gcasti256
+
+      - name: Close issue with success
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const name = '${{ steps.meta.outputs.name }}';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `✅ Project **${name}** has been created and published!\n\n🔗 https://github.com/gcasti256/${name}\n\nThe repo has been scaffolded with:\n- TypeScript config\n- CI/CD workflow\n- AI-generated README\n- MIT License\n\nNext steps: add features with \`portfolio-agents build\``
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              state: 'closed'
+            });

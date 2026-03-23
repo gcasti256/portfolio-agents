@@ -1,0 +1,65 @@
+name: Refresh Documentation
+
+on:
+  schedule:
+    # 1st of every month at 8am UTC
+    - cron: "0 8 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        repo:
+          - ai-chat-platform
+          - gh-auto
+          - realtime-dash
+          - taskflow
+          - api-hub
+          - web-summarizer
+          - portfolio-agents
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Configure git
+        run: |
+          git config --global user.name "George Castillo"
+          git config --global user.email "gcasti256@users.noreply.github.com"
+
+      - name: Clone target repo
+        run: gh repo clone gcasti256/${{ matrix.repo }} /tmp/${{ matrix.repo }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Regenerate docs
+        run: node dist/cli.js docs /tmp/${{ matrix.repo }} --mode readme
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: gcasti256
+
+      - name: Push if changed
+        working-directory: /tmp/${{ matrix.repo }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "docs: refresh README (auto-generated)"
+            git push
+            echo "✓ Updated docs for ${{ matrix.repo }}"
+          else
+            echo "ℹ No changes for ${{ matrix.repo }}"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

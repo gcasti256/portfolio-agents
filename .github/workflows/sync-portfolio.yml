@@ -1,0 +1,44 @@
+name: Sync Portfolio Site
+
+on:
+  schedule:
+    # Every Sunday at 6am UTC
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Configure git
+        run: |
+          git config --global user.name "George Castillo"
+          git config --global user.email "gcasti256@users.noreply.github.com"
+
+      - name: Clone portfolio site
+        run: gh repo clone gcasti256/portfolio-site /tmp/portfolio-site
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install portfolio deps
+        run: cd /tmp/portfolio-site && npm ci
+
+      - name: Sync project data
+        run: node dist/cli.js sync --portfolio-dir /tmp/portfolio-site
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: gcasti256

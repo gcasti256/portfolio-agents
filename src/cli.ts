@@ -6,6 +6,8 @@ import { scaffold } from "./commands/scaffold.js";
 import { buildFeature } from "./commands/build-feature.js";
 import { generateDocs } from "./commands/generate-docs.js";
 import { syncPortfolio } from "./commands/sync-portfolio.js";
+import { propose } from "./commands/propose.js";
+import { autoFeature } from "./commands/auto-feature.js";
 
 dotenv.config();
 
@@ -100,6 +102,44 @@ program
       await syncPortfolio({
         portfolioDir: opts.portfolioDir,
         dryRun: opts.dryRun,
+      });
+    } catch (err) {
+      console.error(`\n❌ Error: ${(err as Error).message}\n`);
+      process.exit(1);
+    }
+  });
+
+// ── Propose ─────────────────────────────────────────────────
+program
+  .command("propose")
+  .description("Generate project ideas and create them as GitHub issues for review")
+  .option("-c, --count <number>", "Number of ideas to generate", "1")
+  .option("--dry-run", "Preview ideas without creating issues", false)
+  .action(async (opts) => {
+    try {
+      await propose({
+        count: parseInt(opts.count, 10),
+        dryRun: opts.dryRun,
+      });
+    } catch (err) {
+      console.error(`\n❌ Error: ${(err as Error).message}\n`);
+      process.exit(1);
+    }
+  });
+
+// ── Auto Feature ────────────────────────────────────────────
+program
+  .command("auto-feature")
+  .description("Pick a random repo and add an AI-generated feature improvement")
+  .option("-r, --repo <name>", "Target specific repo (random if omitted)")
+  .option("-w, --work-dir <path>", "Working directory for clones", "/tmp/portfolio-repos")
+  .option("--dry-run", "Preview without building or pushing", false)
+  .action(async (opts) => {
+    try {
+      await autoFeature({
+        repo: opts.repo,
+        dryRun: opts.dryRun,
+        workDir: opts.workDir,
       });
     } catch (err) {
       console.error(`\n❌ Error: ${(err as Error).message}\n`);

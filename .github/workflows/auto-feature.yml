@@ -1,0 +1,46 @@
+name: Auto Feature
+
+on:
+  schedule:
+    # Every Wednesday and Saturday at 10am UTC
+    - cron: "0 10 * * 3,6"
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Target repo (leave empty for random)"
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  feature:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Configure git
+        run: |
+          git config --global user.name "George Castillo"
+          git config --global user.email "gcasti256@users.noreply.github.com"
+
+      - name: Generate and push a feature
+        run: |
+          REPO_FLAG=""
+          if [ -n "${{ github.event.inputs.repo }}" ]; then
+            REPO_FLAG="--repo ${{ github.event.inputs.repo }}"
+          fi
+          node dist/cli.js auto-feature $REPO_FLAG --work-dir /tmp/repos
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: gcasti256
